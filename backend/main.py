@@ -5,7 +5,11 @@ Exposes API endpoints to enqueue Celery tasks, poll task status, and check appli
 
 import os
 import re
+import sys
+import time
 import logging
+import threading
+import subprocess
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query, status
@@ -24,15 +28,97 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fastapi_backend")
 
+fake_redis_server = None
+worker_process = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global fake_redis_server, worker_process
     # Startup sequence
     logger.info("Starting up FastAPI application")
     logger.info(f"Loaded Configuration: {settings.safe_dict()}")
+
+    is_testing = "pytest" in sys.modules or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+
+    if not is_testing:
+        broker_ready = False
+        try:
+            import redis
+            if settings.CELERY_BROKER_URL:
+                r = redis.Redis.from_url(settings.celery_broker_url, socket_timeout=1, socket_connect_timeout=1)
+            else:
+                r = redis.Redis(
+                    host=settings.REDIS_HOST,
+                    port=settings.REDIS_PORT,
+                    password=settings.REDIS_PASSWORD,
+                    db=settings.REDIS_DB,
+                    ssl=settings.REDIS_USE_SSL,
+                    socket_timeout=1,
+                    socket_connect_timeout=1,
+                )
+            broker_ready = bool(r.ping())
+            logger.info("Verified connection to active Redis broker.")
+        except Exception as conn_err:
+            logger.warning(f"Initial Redis broker check failed: {conn_err}")
+
+        # If broker is unreachable on localhost and no external broker is configured, start embedded Redis
+        if not broker_ready and settings.REDIS_HOST in ("localhost", "127.0.0.1") and not settings.CELERY_BROKER_URL:
+            try:
+                from fakeredis import TcpFakeServer
+                logger.info("Auto-starting embedded Redis server on 127.0.0.1:6379...")
+                fake_redis_server = TcpFakeServer(("127.0.0.1", 6379))
+                server_thread = threading.Thread(target=fake_redis_server.serve_forever, daemon=True)
+                server_thread.start()
+                time.sleep(0.5)
+                logger.info("Embedded Redis server is ready on 127.0.0.1:6379.")
+                broker_ready = True
+            except ImportError:
+                logger.warning("fakeredis is not installed; embedded Redis fallback unavailable.")
+            except Exception as e:
+                logger.error(f"Failed to start embedded Redis server: {e}")
+
+        # If broker is available and embedded worker is not explicitly disabled, launch Celery worker daemon
+        if broker_ready and not os.environ.get("DISABLE_EMBEDDED_WORKER"):
+            try:
+                backend_dir = Path(__file__).parent
+                worker_cmd = [
+                    sys.executable,
+                    "-m",
+                    "celery",
+                    "-A",
+                    "worker.celery",
+                    "worker",
+                    f"--loglevel={settings.LOG_LEVEL.lower()}",
+                    "--pool=solo",
+                ]
+                worker_env = os.environ.copy()
+                worker_env["PYTHONPATH"] = f"{backend_dir}{os.pathsep}{worker_env.get('PYTHONPATH', '')}"
+                logger.info("Spawning embedded Celery worker subprocess...")
+                worker_process = subprocess.Popen(worker_cmd, cwd=str(backend_dir), env=worker_env)
+                logger.info(f"Embedded Celery worker running (PID: {worker_process.pid})")
+            except Exception as exc:
+                logger.error(f"Failed to launch Celery worker process: {exc}")
+
     yield
+
     # Shutdown sequence
     logger.info("Shutting down FastAPI application")
+    if worker_process:
+        try:
+            logger.info("Terminating Celery worker process...")
+            worker_process.terminate()
+            worker_process.wait(timeout=5)
+        except Exception as e:
+            logger.warning(f"Error terminating worker: {e}")
+
+    if fake_redis_server:
+        try:
+            logger.info("Stopping embedded Redis server...")
+            fake_redis_server.shutdown()
+            fake_redis_server.server_close()
+        except Exception as e:
+            logger.warning(f"Error stopping fake Redis server: {e}")
 
 
 app = FastAPI(

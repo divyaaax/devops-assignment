@@ -65,15 +65,17 @@ def main():
     env["PYTHONPATH"] = str(backend_dir)
     env["REDIS_HOST"] = "localhost"
     env["REDIS_PORT"] = "6379"
+    os.environ["DISABLE_EMBEDDED_WORKER"] = "true"
 
     logger.info("Spawning Celery Worker process...")
     worker_proc = subprocess.Popen(worker_cmd, cwd=str(backend_dir), env=env)
 
     # 3. Start FastAPI Uvicorn
+    port = int(os.environ.get("PORT", os.environ.get("BACKEND_PORT", 8000)))
     import uvicorn
-    logger.info("FastAPI starting on http://127.0.0.1:8000 (Open in browser!)")
+    logger.info(f"FastAPI starting on http://0.0.0.0:{port} (Open in browser!)")
     try:
-        uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info", app_dir=str(backend_dir))
+        uvicorn.run("main:app", host="0.0.0.0", port=port, log_level="info", app_dir=str(backend_dir))
     except KeyboardInterrupt:
         logger.info("Stopping stack...")
     finally:

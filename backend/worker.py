@@ -39,10 +39,15 @@ logger.info(f"Celery worker configured. Broker: {settings.safe_dict()['CELERY_BR
 
 def send_real_email(recipient_email: str, task_id: str) -> str:
     """Sends a real email using configured SMTP provider (e.g. Gmail SMTP)."""
-    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+    smtp_user = (settings.SMTP_USER or "").replace('"', "").replace("'", "").strip()
+    smtp_password = (settings.SMTP_PASSWORD or "").replace(" ", "").replace('"', "").replace("'", "").strip()
+
+    if not smtp_user or not smtp_password:
         raise ValueError("SMTP_USER and SMTP_PASSWORD must be configured in .env for real email delivery")
 
-    from_addr = settings.SMTP_FROM or settings.SMTP_USER
+    from_addr = (settings.SMTP_FROM or smtp_user).replace('"', "").replace("'", "").strip()
+    recipient_email = recipient_email.strip()
+
     msg = EmailMessage()
     msg["Subject"] = "DevOps Assessment: Real-Time Task Notification"
     msg["From"] = from_addr
@@ -65,7 +70,7 @@ def send_real_email(recipient_email: str, task_id: str) -> str:
         server.ehlo()
         server.starttls()
         server.ehlo()
-        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        server.login(smtp_user, smtp_password)
         server.send_message(msg)
     logger.info(f"Real email successfully dispatched to {recipient_email}")
     return f"Real email dispatched to {recipient_email}"
