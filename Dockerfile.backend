@@ -1,0 +1,64 @@
+# ==============================================================================
+# Production Dockerfile for FastAPI Backend
+# ==============================================================================
+# - Multi-stage build for minimal final image size and clean dependencies
+# - Pinned Python 3.11-slim base image for stability and security patches
+# - Runs as an unprivileged non-root user (appuser, UID 10001)
+# - Built-in container HEALTHCHECK probe
+# - Graceful signal handling for container termination
+# ==============================================================================
+
+# Stage 1: Build & Dependencies
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 2: Runtime Environment
+FROM python:3.11-slim AS runner
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/home/appuser/.local/bin:${PATH}" \
+    PYTHONPATH="/app/backend:/app" \
+    BACKEND_PORT=8000
+
+# Install curl for reliable health checks and ca-certificates for TLS
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root system user and group
+RUN groupadd --gid 10001 appgroup && \
+    useradd --uid 10001 --gid appgroup --shell /bin/bash --create-home appuser
+
+# Copy installed Python packages from builder stage
+COPY --from=builder --chown=appuser:appgroup /root/.local /home/appuser/.local
+
+# Copy application source code
+COPY --chown=appuser:appgroup backend/ /app/backend/
+COPY --chown=appuser:appgroup frontend/ /app/frontend/
+
+USER appuser
+
+EXPOSE 8000
+
+# Container healthcheck querying the /health endpoint
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://127.0.0.1:${BACKEND_PORT}/health || exit 1
+
+# Launch uvicorn with shell parameter expansion for BACKEND_PORT
+# Using exec ensures uvicorn receives SIGTERM directly for graceful shutdown
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${BACKEND_PORT}"]

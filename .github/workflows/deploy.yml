@@ -1,0 +1,123 @@
+name: Continuous Deployment to AWS ECS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Required for AWS OIDC authentication
+  contents: read    # Required for actions/checkout
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build, Publish to ECR & Deploy to ECS Fargate
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER_NAME || 'devops-assessment-dev-cluster' }}
+      BACKEND_SERVICE: ${{ vars.BACKEND_SERVICE_NAME || 'devops-assessment-dev-backend-service' }}
+      WORKER_SERVICE: ${{ vars.WORKER_SERVICE_NAME || 'devops-assessment-dev-worker-service' }}
+      ALB_DNS_NAME: ${{ vars.ALB_DNS_NAME }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Backend Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_BACKEND_REPO || 'devops-assessment-backend' }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f Dockerfile.backend .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "BACKEND_IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Build, Tag, and Push Worker Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_WORKER_REPO || 'devops-assessment-worker' }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f Dockerfile.worker .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "WORKER_IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Download Active Backend Task Definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition devops-assessment-dev-backend \
+            --query taskDefinition > task-def-backend.json
+
+      - name: Render Backend Container Image
+        id: render-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def-backend.json
+          container-name: backend
+          image: ${{ env.BACKEND_IMAGE }}
+
+      - name: Deploy Backend to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          service: ${{ env.BACKEND_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Download Active Worker Task Definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition devops-assessment-dev-worker \
+            --query taskDefinition > task-def-worker.json
+
+      - name: Render Worker Container Image
+        id: render-worker
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def-worker.json
+          container-name: worker
+          image: ${{ env.WORKER_IMAGE }}
+
+      - name: Deploy Worker to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-worker.outputs.task-definition }}
+          service: ${{ env.WORKER_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Verify Live Service Health via ALB
+        if: env.ALB_DNS_NAME != ''
+        run: |
+          echo "Validating live application health check through ALB..."
+          for i in {1..12}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ env.ALB_DNS_NAME }}/health || true)
+            echo "Attempt $i: HTTP Status $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "Deployment verified! ALB returned HTTP 200 OK."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Error: Application failed health verification after 120 seconds."
+          exit 1

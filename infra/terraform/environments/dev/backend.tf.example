@@ -1,0 +1,19 @@
+# ==============================================================================
+# S3 & DynamoDB Remote State Backend Template
+# ==============================================================================
+# Step 1: Run Terraform in infra/terraform/bootstrap to provision the S3 bucket & DynamoDB table.
+# Step 2: Copy this file to backend.tf:
+#         cp backend.tf.example backend.tf
+# Step 3: Populate bucket and dynamodb_table with outputs from the bootstrap step.
+# Step 4: Run terraform init -migrate-state to migrate local state to AWS S3.
+# ==============================================================================
+
+# terraform {
+#   backend "s3" {
+#     bucket         = "devops-assessment-tfstate-dev"
+#     key            = "environments/dev/terraform.tfstate"
+#     region         = "us-east-1"
+#     dynamodb_table = "devops-assessment-tflocks-dev"
+#     encrypt        = true
+#   }
+# }

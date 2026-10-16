@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Task Notifier</title>
+    <title>DevOps Task Notifier</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
       body {
@@ -23,8 +23,9 @@
         padding: 2rem;
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
         width: 100%;
-        max-width: 480px;
+        max-width: 500px;
         border: 1px solid #1f2937;
+        box-sizing: border-box;
       }
       h1 {
         margin: 0 0 0.5rem;
@@ -32,22 +33,41 @@
         color: #f9fafb;
       }
       p {
-        margin: 0 0 1.5rem;
+        margin: 0 0 1.25rem;
         color: #9ca3af;
         font-size: 0.95rem;
+        line-height: 1.4;
+      }
+      .api-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
+        background: #1e293b;
+        color: #94a3b8;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.375rem;
+        margin-bottom: 1.25rem;
+        word-break: break-all;
+      }
+      .api-badge span.dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #22c55e;
       }
       label {
         display: block;
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.35rem;
         font-size: 0.9rem;
         color: #e5e7eb;
       }
       input {
         width: 100%;
-        padding: 0.5rem 0.75rem;
+        padding: 0.6rem 0.75rem;
         border-radius: 0.5rem;
         border: 1px solid #374151;
-        background: #020617;
+        background: #0f172a;
         color: #e5e7eb;
         font-size: 0.95rem;
         box-sizing: border-box;
@@ -58,9 +78,9 @@
         box-shadow: 0 0 0 1px #22c55e33;
       }
       button {
-        margin-top: 0.75rem;
+        margin-top: 0.85rem;
         width: 100%;
-        padding: 0.6rem 1rem;
+        padding: 0.7rem 1rem;
         border-radius: 0.5rem;
         border: none;
         background: #22c55e;
@@ -68,58 +88,83 @@
         font-weight: 600;
         font-size: 0.95rem;
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
         transition: background 0.15s ease, transform 0.05s ease,
           box-shadow 0.05s ease;
       }
-      button:hover {
+      button:hover:not(:disabled) {
         background: #16a34a;
         box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
         transform: translateY(-1px);
       }
       button:disabled {
         opacity: 0.6;
-        cursor: default;
+        cursor: not-allowed;
         box-shadow: none;
         transform: none;
       }
+      .spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #022c22;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
       .status {
         margin-top: 1.25rem;
-        padding: 0.75rem 0.9rem;
+        padding: 0.85rem 1rem;
         border-radius: 0.5rem;
-        background: #020617;
+        background: #090d16;
         border: 1px solid #1f2937;
         font-size: 0.9rem;
         word-break: break-word;
       }
+      .status-line {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.4rem;
+      }
       .status-label {
         font-weight: 600;
-        color: #e5e7eb;
+        color: #94a3b8;
+        font-size: 0.85rem;
       }
       .status-value {
         color: #a5b4fc;
+        font-family: monospace;
       }
       .status-chip {
         display: inline-block;
-        margin-top: 0.35rem;
-        padding: 0.15rem 0.55rem;
+        padding: 0.2rem 0.6rem;
         border-radius: 999px;
         font-size: 0.75rem;
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.06em;
       }
       .status-chip.in-progress {
         background: #1e293b;
-        color: #e5e7eb;
+        color: #93c5fd;
+        border: 1px solid #3b82f644;
       }
       .status-chip.completed {
-        background: #22c55e33;
-        color: #bbf7d0;
-        border: 1px solid #22c55e66;
+        background: #064e3b;
+        color: #a7f3d0;
+        border: 1px solid #10b98166;
       }
       .status-chip.failed {
-        background: #991b1b33;
+        background: #7f1d1d;
         color: #fecaca;
-        border: 1px solid #fecaca66;
+        border: 1px solid #ef444466;
       }
       .progress-wrap {
         margin-top: 0.75rem;
@@ -138,124 +183,188 @@
         transition: width 0.3s ease;
       }
       .progress-msg {
-        margin-top: 0.35rem;
+        margin-top: 0.4rem;
         font-size: 0.8rem;
         color: #9ca3af;
       }
+      .result-box {
+        margin-top: 0.75rem;
+        padding: 0.6rem 0.75rem;
+        border-radius: 0.375rem;
+        background: #022c22;
+        border: 1px solid #059669;
+        color: #6ee7b7;
+        font-size: 0.85rem;
+      }
       .error {
         margin-top: 0.75rem;
+        padding: 0.6rem 0.75rem;
+        border-radius: 0.375rem;
+        background: #450a0a;
+        border: 1px solid #b91c1c;
         color: #fecaca;
         font-size: 0.85rem;
       }
-      .small {
+      .details-toggle {
         margin-top: 1rem;
-        font-size: 0.8rem;
-        color: #6b7280;
+        font-size: 0.75rem;
+        color: #64748b;
+        cursor: pointer;
+        user-select: none;
       }
-      code {
-        background: #020617;
-        padding: 0.1rem 0.4rem;
-        border-radius: 0.25rem;
-        font-size: 0.8rem;
+      .details-toggle:hover {
+        color: #94a3b8;
+      }
+      .config-input {
+        margin-top: 0.5rem;
+        display: none;
       }
     </style>
   </head>
   <body>
     <div class="card">
       <h1>Task Notifier</h1>
-      <p>Trigger a notification task and watch its status update in real time.</p>
+      <p>Trigger an asynchronous Celery task and track its distributed lifecycle in real time.</p>
 
-      <label for="email">Email</label>
+      <div class="api-badge" id="api-badge" title="Target Backend API Base">
+        <span class="dot"></span>
+        API: <span id="api-endpoint-text">Resolving...</span>
+      </div>
+
+      <label for="email">Recipient Email</label>
       <input
         id="email"
         type="email"
-        placeholder="dev@example.com"
+        placeholder="engineer@example.com"
         autocomplete="off"
       />
-      <button id="notify-btn">Send notification</button>
+      <button id="notify-btn">
+        <span id="btn-text">Send notification</span>
+      </button>
 
+      <!-- Realtime Status Dashboard -->
       <div id="status" class="status" style="display: none">
-        <div>
+        <div class="status-line">
           <span class="status-label">Task ID:</span>
           <span id="task-id" class="status-value"></span>
         </div>
-        <div id="task-status-line">
+        <div class="status-line">
           <span class="status-label">Status:</span>
           <span id="task-status" class="status-chip in-progress">PENDING</span>
         </div>
+        
         <div id="progress-wrap" class="progress-wrap" style="display: none">
           <div class="progress-bar">
             <div id="progress-fill" class="progress-fill"></div>
           </div>
-          <div id="progress-msg" class="progress-msg">Task running… should complete shortly.</div>
+          <div id="progress-msg" class="progress-msg">Worker processing task…</div>
         </div>
-        <div id="task-result-line" style="margin-top: 0.5rem; display: none">
-          <span class="status-label">Result:</span>
-          <span id="task-result" class="status-value"></span>
+
+        <div id="task-result-box" class="result-box" style="display: none">
+          <strong>Result:</strong> <span id="task-result"></span>
         </div>
       </div>
 
       <div id="error" class="error" style="display: none"></div>
+
+      <!-- Configurable endpoint helper -->
+      <div class="details-toggle" id="toggle-config">⚙ Override API Endpoint</div>
+      <div id="config-wrap" class="config-input">
+        <label for="api-override" style="font-size: 0.75rem;">Backend URL (e.g. http://localhost:8000 or ALB DNS):</label>
+        <input id="api-override" type="text" placeholder="http://localhost:8000" />
+      </div>
     </div>
 
     <script>
-      const API_BASE = "http://localhost:8000";
+      // =======================================================================
+      // Dynamic API Base URL Resolution
+      // =======================================================================
+      function resolveApiBase() {
+        // 1. Check query parameter ?api=
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("api")) {
+          return urlParams.get("api").replace(/\/$/, "");
+        }
+        // 2. Check localStorage override
+        const stored = localStorage.getItem("devops_api_base");
+        if (stored) return stored.replace(/\/$/, "");
+        // 3. Same-origin if served via HTTP/HTTPS (FastAPI or ALB)
+        if (window.location.protocol.startsWith("http")) {
+          return window.location.origin;
+        }
+        // 4. Default fallback for file:/// protocol
+        return "http://localhost:8000";
+      }
+
+      let API_BASE = resolveApiBase();
+      const apiEndpointText = document.getElementById("api-endpoint-text");
+      apiEndpointText.textContent = API_BASE;
 
       const emailInput = document.getElementById("email");
       const notifyBtn = document.getElementById("notify-btn");
+      const btnText = document.getElementById("btn-text");
       const statusBox = document.getElementById("status");
       const taskIdEl = document.getElementById("task-id");
       const taskStatusEl = document.getElementById("task-status");
-      const taskResultLine = document.getElementById("task-result-line");
+      const taskResultBox = document.getElementById("task-result-box");
       const taskResultEl = document.getElementById("task-result");
       const errorEl = document.getElementById("error");
       const progressWrap = document.getElementById("progress-wrap");
       const progressFill = document.getElementById("progress-fill");
       const progressMsg = document.getElementById("progress-msg");
+      const toggleConfig = document.getElementById("toggle-config");
+      const configWrap = document.getElementById("config-wrap");
+      const apiOverrideInput = document.getElementById("api-override");
+
+      apiOverrideInput.value = API_BASE;
+      toggleConfig.addEventListener("click", () => {
+        configWrap.style.display = configWrap.style.display === "block" ? "none" : "block";
+      });
+      apiOverrideInput.addEventListener("change", (e) => {
+        const val = e.target.value.trim();
+        if (val) {
+          localStorage.setItem("devops_api_base", val);
+          API_BASE = val.replace(/\/$/, "");
+          apiEndpointText.textContent = API_BASE;
+        }
+      });
 
       const TASK_EST_SEC = 6;
-      const DONE_SHOW_MS = 10000;
+      const MAX_POLL_ATTEMPTS = 30; // 60 seconds maximum timeout
       let pollTimer = null;
       let progressInterval = null;
-      let hideStatusTimer = null;
+      let pollAttempts = 0;
 
       function startProgress() {
         progressWrap.style.display = "block";
         progressFill.style.width = "0%";
-        progressMsg.textContent = "Task running… should complete shortly.";
+        progressMsg.textContent = "Worker processing task in background…";
         let p = 0;
         const step = 100 / (TASK_EST_SEC * 10);
-        const stepMs = 100;
         progressInterval = setInterval(() => {
           p = Math.min(p + step, 95);
           progressFill.style.width = p + "%";
-        }, stepMs);
+        }, 100);
       }
 
-      function finishProgress(done = true) {
+      function finishProgress(success = true) {
         if (progressInterval) {
           clearInterval(progressInterval);
           progressInterval = null;
         }
         progressFill.style.width = "100%";
-        progressMsg.textContent = done ? "Done." : "Task finished.";
+        progressMsg.textContent = success ? "Execution completed." : "Task ended with failure.";
       }
 
-      function hideProgress() {
+      function clearTimers() {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
         if (progressInterval) {
           clearInterval(progressInterval);
           progressInterval = null;
         }
-        progressWrap.style.display = "none";
-        progressFill.style.width = "0%";
-      }
-
-      function scheduleHideStatusBlock() {
-        if (hideStatusTimer) return;
-        hideStatusTimer = setTimeout(() => {
-          statusBox.style.display = "none";
-          hideStatusTimer = null;
-        }, 10000);
       }
 
       function setError(msg) {
@@ -273,84 +382,95 @@
         taskStatusEl.classList.remove("in-progress", "completed", "failed");
         if (s === "completed") {
           taskStatusEl.classList.add("completed");
+          taskStatusEl.textContent = "COMPLETED";
         } else if (s === "failed") {
           taskStatusEl.classList.add("failed");
+          taskStatusEl.textContent = "FAILED";
         } else {
           taskStatusEl.classList.add("in-progress");
+          taskStatusEl.textContent = "IN PROGRESS";
         }
-        taskStatusEl.textContent = s.toUpperCase() || "UNKNOWN";
       }
 
       async function pollStatus(taskId) {
-        if (!taskId) return;
+        pollAttempts++;
+        if (pollAttempts > MAX_POLL_ATTEMPTS) {
+          clearTimers();
+          setError("Polling timed out after 60 seconds. Worker may be delayed or unavailable.");
+          finishProgress(false);
+          notifyBtn.disabled = false;
+          btnText.textContent = "Send notification";
+          return;
+        }
+
         try {
-          const res = await fetch(`${API_BASE}/task_status/${taskId}`);
+          const res = await fetch(`${API_BASE}/task_status/${encodeURIComponent(taskId)}`);
           if (!res.ok) {
-            throw new Error(`Status HTTP ${res.status}`);
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `HTTP ${res.status}`);
           }
           const data = await res.json();
           setStatusChip(data.status);
 
           if (data.status === "completed") {
+            clearTimers();
             finishProgress(true);
             if (data.result) {
-              taskResultLine.style.display = "block";
+              taskResultBox.style.display = "block";
               taskResultEl.textContent = data.result;
             }
-            clearInterval(pollTimer);
-            pollTimer = null;
-            scheduleHideStatusBlock();
+            notifyBtn.disabled = false;
+            btnText.textContent = "Send notification";
           } else if (data.status === "failed") {
+            clearTimers();
             finishProgress(false);
-            clearInterval(pollTimer);
-            pollTimer = null;
-            scheduleHideStatusBlock();
+            setError(data.error ? `Task failed: ${data.error}` : "Task failed during execution.");
+            notifyBtn.disabled = false;
+            btnText.textContent = "Send notification";
           }
         } catch (err) {
-          setError(`Failed to fetch status: ${err.message}`);
+          clearTimers();
           finishProgress(false);
-          clearInterval(pollTimer);
-          pollTimer = null;
+          setError(`Status inspection error: ${err.message}`);
+          notifyBtn.disabled = false;
+          btnText.textContent = "Send notification";
         }
       }
 
       async function notify() {
         setError(null);
-        if (pollTimer) {
-          clearInterval(pollTimer);
-          pollTimer = null;
-        }
-        if (hideStatusTimer) {
-          clearTimeout(hideStatusTimer);
-          hideStatusTimer = null;
-        }
-        hideProgress();
+        clearTimers();
+        pollAttempts = 0;
 
         const email = emailInput.value.trim();
         if (!email) {
-          setError("Email is required.");
+          setError("Email address is required.");
+          return;
+        }
+        if (!/^[\w\.-]+@[\w\.-]+\.\w+$/.test(email)) {
+          setError("Please enter a valid email address (e.g. dev@example.com).");
           return;
         }
 
         notifyBtn.disabled = true;
-        notifyBtn.textContent = "Sending...";
+        btnText.innerHTML = '<span class="spinner"></span> Enqueuing…';
 
         try {
           const res = await fetch(
             `${API_BASE}/notify/?email=${encodeURIComponent(email)}`,
-            {
-              method: "POST",
-            }
+            { method: "POST" }
           );
           if (!res.ok) {
-            throw new Error(`Notify HTTP ${res.status}`);
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.detail || `Server returned HTTP ${res.status}`);
           }
+
           const data = await res.json();
           const taskId = data.task_id;
 
-          taskIdEl.textContent = taskId || "<missing>";
+          taskIdEl.textContent = taskId || "Unknown";
           setStatusChip("in progress");
-          taskResultLine.style.display = "none";
+          taskResultBox.style.display = "none";
           taskResultEl.textContent = "";
           statusBox.style.display = "block";
           startProgress();
@@ -359,15 +479,13 @@
             pollTimer = setInterval(() => pollStatus(taskId), 2000);
           }
         } catch (err) {
-          setError(`Failed to trigger task: ${err.message}`);
-        } finally {
+          setError(`Failed to trigger notification: ${err.message}`);
           notifyBtn.disabled = false;
-          notifyBtn.textContent = "Send notification";
+          btnText.textContent = "Send notification";
         }
       }
 
       notifyBtn.addEventListener("click", notify);
-
       emailInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -376,5 +494,4 @@
       });
     </script>
   </body>
-  </html>
-
+</html>

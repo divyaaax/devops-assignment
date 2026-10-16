@@ -1,0 +1,101 @@
+version: "3.8"
+
+services:
+  # ============================================================================
+  # Redis: Asynchronous Message Broker & Result Backend
+  # ============================================================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: devops-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - devops-network
+    # Exposing 6379 locally allows testing/inspection from host if needed
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ============================================================================
+  # FastAPI Backend Service
+  # ============================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: devops-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
+      - BACKEND_PORT=${BACKEND_PORT:-8000}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=0
+      - REDIS_USE_SSL=false
+      - TASK_SIMULATION_SECONDS=${TASK_SIMULATION_SECONDS:-6}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - devops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ============================================================================
+  # Celery Asynchronous Worker Service
+  # ============================================================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: devops-worker
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=0
+      - REDIS_USE_SSL=false
+      - TASK_SIMULATION_SECONDS=${TASK_SIMULATION_SECONDS:-6}
+      - CELERY_LOG_FILE=/tmp/log_celery.txt
+      - ENABLE_REAL_EMAIL=${ENABLE_REAL_EMAIL:-false}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - devops-network
+
+# ==============================================================================
+# Shared Resources
+# ==============================================================================
+networks:
+  devops-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
