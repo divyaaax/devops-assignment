@@ -76,16 +76,14 @@ def send_real_email(recipient_email: str, task_id: str) -> str:
     return f"Real email dispatched to {recipient_email}"
 
 
-@celery.task(bind=True, name="worker.write_log_celery")
-def write_log_celery(self, message: str):
+def process_notification_job(task_id: str, message: str) -> str:
     """
-    Processes notification task:
+    Core notification execution logic:
     1. Simulates or delivers real email via Gmail SMTP if configured.
     2. Writes local log file.
     3. Returns status message for client UI.
     """
-    logger.info(f"Task started (ID: {self.request.id}): {message}")
-    task_id = self.request.id or "standalone-task"
+    logger.info(f"Task started (ID: {task_id}): {message}")
 
     # Extract recipient email address if present in message
     email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", message)
@@ -102,7 +100,8 @@ def write_log_celery(self, message: str):
     else:
         # Standard simulated duration
         duration = settings.TASK_SIMULATION_SECONDS
-        time.sleep(duration)
+        if duration > 0:
+            time.sleep(duration)
         result_message = f"Task completed: {message}"
 
     # Write log file safely
@@ -116,3 +115,9 @@ def write_log_celery(self, message: str):
 
     logger.info(f"Task completed successfully (ID: {task_id}): {result_message}")
     return result_message
+
+
+@celery.task(bind=True, name="worker.write_log_celery")
+def write_log_celery(self, message: str):
+    task_id = self.request.id or "standalone-task"
+    return process_notification_job(task_id, message)
