@@ -18,13 +18,13 @@ Ensure you have the following installed on your workstation:
 
 ### Linux / macOS / Windows (Git Bash):
 ```bash
-git clone https://github.com/kumarnitesh2000-cardit/devops-assignment.git
+git clone https://github.com/divyaaax/devops-assignment.git
 cd devops-assignment
 ```
 
 ### Windows (PowerShell):
 ```powershell
-git clone https://github.com/kumarnitesh2000-cardit/devops-assignment.git
+git clone https://github.com/divyaaax/devops-assignment.git
 cd devops-assignment
 ```
 

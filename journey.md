@@ -6,7 +6,7 @@ This document chronicles the real-world engineering journey of analyzing the sta
 
 ## 1. Initial Repository Analysis & Discovery
 
-Upon cloning and inspecting the source repository (`kumarnitesh2000-cardit/devops-assignment`), we discovered a bare-bones proof of concept with severe operational and security flaws:
+Upon cloning and inspecting the source repository, we discovered a bare-bones proof of concept with severe operational and security flaws:
 
 ### Initial Repository Inventory
 - `backend/main.py`: FastAPI service with 3 routes (`POST /notify/`, `GET /task_status/{task_id}`, `POST /health/`).

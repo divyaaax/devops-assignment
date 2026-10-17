@@ -1,8 +1,4 @@
-"""
-FastAPI Application Root Entry Point
-Exposes FastAPI application instance for Render, container, and CLI runners.
-"""
-
+# entry point for web app
 import sys
 from pathlib import Path
 

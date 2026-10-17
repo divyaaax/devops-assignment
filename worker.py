@@ -1,8 +1,4 @@
-"""
-Celery Worker Root Entry Point
-Exposes Celery application and worker tasks for Render, container, and CLI runners.
-"""
-
+# entry point for celery worker
 import sys
 from pathlib import Path
 

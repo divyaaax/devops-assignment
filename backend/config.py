@@ -1,47 +1,35 @@
-"""
-Centralized Configuration Module
-Provides strongly-typed, validated configuration with environment variable support,
-safe defaults for development, and secret masking for safe logging.
-"""
-
 import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field
 
 
 class Settings(BaseSettings):
-    # Application Environment
-    ENVIRONMENT: str = Field(default="development", description="Environment: development, staging, production")
-    LOG_LEVEL: str = Field(default="INFO", description="Logging level: DEBUG, INFO, WARNING, ERROR")
-    BACKEND_HOST: str = Field(default="0.0.0.0", description="Backend host bind address")
-    BACKEND_PORT: int = Field(default=8000, description="Backend port")
-    CORS_ORIGINS: str = Field(default="*", description="Comma-separated CORS origins or '*'")
+    ENVIRONMENT: str = "development"
+    LOG_LEVEL: str = "INFO"
+    BACKEND_HOST: str = "0.0.0.0"
+    BACKEND_PORT: int = 8000
+    CORS_ORIGINS: str = "*"
 
-    # Redis Configuration
-    REDIS_HOST: str = Field(default="localhost", description="Redis hostname or endpoint")
-    REDIS_PORT: int = Field(default=6379, description="Redis port")
-    REDIS_PASSWORD: Optional[str] = Field(default=None, description="Redis password for AUTH")
-    REDIS_DB: int = Field(default=0, description="Redis DB index")
-    REDIS_USE_SSL: bool = Field(default=False, description="Enable TLS/SSL for ElastiCache in-transit encryption")
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: Optional[str] = None
+    REDIS_DB: int = 0
+    REDIS_USE_SSL: bool = False
+    REDIS_URL: Optional[str] = None
 
-    # Celery Override URLs (optional, derived if not set)
-    REDIS_URL: Optional[str] = Field(default=None, description="Standard Redis connection URL (e.g. from Render/Heroku)")
-    CELERY_BROKER_URL: Optional[str] = Field(default=None, description="Explicit Celery broker URL override")
-    CELERY_RESULT_BACKEND_URL: Optional[str] = Field(default=None, description="Explicit Celery result backend URL override")
+    CELERY_BROKER_URL: Optional[str] = None
+    CELERY_RESULT_BACKEND_URL: Optional[str] = None
 
-    # Task Settings
-    TASK_SIMULATION_SECONDS: int = Field(default=2, description="Simulated duration for background work in seconds")
+    TASK_SIMULATION_SECONDS: int = 2
 
-    # Real Email Delivery Settings (SMTP)
-    ENABLE_REAL_EMAIL: bool = Field(default=False, description="Enable real outbound email delivery")
-    SMTP_HOST: str = Field(default="smtp.gmail.com", description="SMTP server hostname")
-    SMTP_PORT: int = Field(default=587, description="SMTP server port (587 for TLS)")
-    SMTP_USER: Optional[str] = Field(default=None, description="Sender Gmail/SMTP username")
-    SMTP_PASSWORD: Optional[str] = Field(default=None, description="Gmail 16-character App Password")
-    SMTP_FROM: Optional[str] = Field(default=None, description="From header email address")
-    RESEND_API_KEY: Optional[str] = Field(default=None, description="Resend.com API Key for port 443 HTTPS email delivery on Render Free Tier")
-    BREVO_API_KEY: Optional[str] = Field(default=None, description="Brevo API Key (xkeysib-...) for sending to ANY email without domain verification")
+    ENABLE_REAL_EMAIL: bool = False
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: Optional[str] = None
+    RESEND_API_KEY: Optional[str] = None
+    BREVO_API_KEY: Optional[str] = None
 
     model_config = {
         "env_file": [
@@ -84,7 +72,6 @@ class Settings(BaseSettings):
         return self._build_redis_url()
 
     def safe_dict(self) -> dict:
-        """Returns configuration dictionary with secrets masked for safe logging/inspection."""
         return {
             "ENVIRONMENT": self.ENVIRONMENT,
             "LOG_LEVEL": self.LOG_LEVEL,

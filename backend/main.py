@@ -1,8 +1,3 @@
-"""
-FastAPI Application Entry Point
-Exposes API endpoints to enqueue Celery tasks, poll task status, and check application health.
-"""
-
 import os
 import re
 import sys
@@ -21,7 +16,6 @@ from celery.result import AsyncResult
 from config import settings
 from worker import celery, write_log_celery
 
-# Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
     format="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
@@ -35,7 +29,6 @@ worker_process = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global fake_redis_server, worker_process
-    # Startup sequence
     logger.info("Starting up FastAPI application")
     logger.info(f"Loaded Configuration: {settings.safe_dict()}")
 
@@ -62,7 +55,7 @@ async def lifespan(app: FastAPI):
         except Exception as conn_err:
             logger.warning(f"Initial Redis broker check failed: {conn_err}")
 
-        # If broker is unreachable on localhost and no external broker is configured, start embedded Redis
+        # embedded redis fallback
         if not broker_ready and settings.REDIS_HOST in ("localhost", "127.0.0.1") and not settings.CELERY_BROKER_URL:
             try:
                 from fakeredis import TcpFakeServer
@@ -79,7 +72,7 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.error(f"Failed to start embedded Redis server: {e}")
 
-        # If broker is available and embedded worker is not explicitly disabled, launch Celery worker daemon
+        # embedded worker fallback
         if broker_ready and not os.environ.get("DISABLE_EMBEDDED_WORKER"):
             try:
                 backend_dir = Path(__file__).parent
@@ -107,7 +100,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown sequence
     logger.info("Shutting down FastAPI application")
     if worker_process:
         try:
@@ -133,7 +125,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS
+# CORS setup
 origins = settings.cors_origins_list
 logger.info(f"Configuring CORS origins: {origins}")
 app.add_middleware(
@@ -151,10 +143,6 @@ EMAIL_REGEX = re.compile(r"^[\w\.-]+@[\w\.-]+\.\w+$")
 @app.get("/health/", status_code=status.HTTP_200_OK, tags=["Health"])
 @app.post("/health/", status_code=status.HTTP_200_OK, tags=["Health"])
 async def health_check():
-    """
-    Health check endpoint for ALB, container probes, and monitoring.
-    Supports both GET and POST to preserve legacy contracts while supporting AWS standard probes.
-    """
     return {
         "status": "healthy",
         "service": "backend",
@@ -166,11 +154,6 @@ TASK_STORE: dict = {}
 
 
 def execute_background_task(task_id: str, message: str):
-    """
-    Direct asynchronous background executor.
-    Guarantees that notification tasks process within seconds and update status
-    even when running in single-instance environments without external Celery workers.
-    """
     try:
         from worker import process_notification_job
         result_msg = process_notification_job(task_id, message)
@@ -179,7 +162,7 @@ def execute_background_task(task_id: str, message: str):
             "status": "completed",
             "result": result_msg,
         }
-        # Persist task metadata to Redis so Celery AsyncResult is also synchronized
+        # cache metadata in redis
         try:
             import json
             import redis
@@ -213,10 +196,6 @@ def execute_background_task(task_id: str, message: str):
 
 @app.post("/notify/", status_code=status.HTTP_202_ACCEPTED, tags=["Tasks"])
 async def notify_user(email: str = Query(..., description="Recipient email address")):
-    """
-    Endpoint that validates email and enqueues background notification task in Celery.
-    Returns 202 Accepted with task_id for polling.
-    """
     clean_email = email.strip()
     if not clean_email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required")
@@ -239,8 +218,7 @@ async def notify_user(email: str = Query(..., description="Recipient email addre
             detail="Message broker unavailable. Background task could not be queued.",
         )
 
-    # Spawn async background executor thread only in single-instance environments
-    # (e.g. Render standalone web service where external Celery worker is disabled)
+    # background thread for standalone mode
     is_testing = "pytest" in sys.modules or bool(os.environ.get("PYTEST_CURRENT_TEST"))
     if not os.environ.get("DISABLE_EMBEDDED_WORKER") and not is_testing:
         msg = f"Notification sent to {clean_email}"
@@ -258,14 +236,10 @@ async def notify_user(email: str = Query(..., description="Recipient email addre
 
 @app.get("/task_status/{task_id}", status_code=status.HTTP_200_OK, tags=["Tasks"])
 async def get_task_status(task_id: str):
-    """
-    Endpoint to check the status and result of a background Celery task.
-    Uses AsyncResult bound explicitly to our Celery instance, with fast in-memory fallback.
-    """
     if not task_id or not task_id.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="task_id cannot be empty")
 
-    # 1. Fast in-memory resolution if task was executed by background thread
+    # check in-memory store first
     if task_id in TASK_STORE:
         return TASK_STORE[task_id]
 
@@ -293,7 +267,6 @@ async def get_task_status(task_id: str):
                 "error": str(task_result.result) if task_result.result else "Task execution failed",
             }
         else:
-            # Handles PENDING, STARTED, RETRY
             return {
                 "task_id": task_id,
                 "status": "in progress",
@@ -307,7 +280,7 @@ async def get_task_status(task_id: str):
         )
 
 
-# Serve static frontend if index.html is located in ../frontend or /app/frontend
+# serve frontend static files
 FRONTEND_PATHS = [
     Path(__file__).parent.parent / "frontend",
     Path(__file__).parent / "frontend",

@@ -1,14 +1,5 @@
-# ==============================================================================
-# Production Dockerfile for Celery Worker
-# ==============================================================================
-# - Multi-stage build for minimal attack surface and small image size
-# - Pinned Python 3.11-slim base image
-# - Dedicated unprivileged user (appuser, UID 10001)
-# - Celery worker process with graceful SIGTERM termination handling
-# - stdout/stderr logging integration for Docker and AWS CloudWatch
-# ==============================================================================
+# Celery worker
 
-# Stage 1: Build & Dependencies
 FROM python:3.11-slim AS builder
 
 WORKDIR /build
@@ -24,7 +15,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --user -r requirements.txt
 
-# Stage 2: Runtime Environment
 FROM python:3.11-slim AS runner
 
 WORKDIR /app
@@ -35,28 +25,28 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH="/app/backend:/app" \
     CELERY_LOG_FILE="/tmp/log_celery.txt"
 
-# Install ca-certificates for TLS connectivity with cloud Redis (ElastiCache)
+# install certificates
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     procps \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root system user and group
+# create non-root user
 RUN groupadd --gid 10001 appgroup && \
     useradd --uid 10001 --gid appgroup --shell /bin/bash --create-home appuser
 
-# Copy installed Python packages from builder stage
+# copy installed packages
 COPY --from=builder --chown=appuser:appgroup /root/.local /home/appuser/.local
 
-# Copy application backend code
+# copy backend code
 COPY --chown=appuser:appgroup backend/ /app/backend/
 COPY --chown=appuser:appgroup *.py /app/
 
 USER appuser
 
-# Celery inspect ping healthcheck to ensure worker process is responsive
+# healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD python -c "import os; exit(0 if os.path.exists('/tmp/worker_heartbeat') or True else 1)"
 
-# Launch Celery worker with graceful signal handling (exec replaces shell process)
+# start celery worker
 CMD ["sh", "-c", "exec celery -A worker.celery worker --loglevel=${LOG_LEVEL:-INFO} --concurrency=2"]
