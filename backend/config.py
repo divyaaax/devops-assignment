@@ -41,7 +41,11 @@ class Settings(BaseSettings):
     SMTP_FROM: Optional[str] = Field(default=None, description="From header email address")
 
     model_config = {
-        "env_file": ".env",
+        "env_file": [
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
+            os.path.join(os.path.dirname(__file__), ".env"),
+            ".env",
+        ],
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }

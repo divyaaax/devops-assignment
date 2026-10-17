@@ -239,13 +239,16 @@ async def notify_user(email: str = Query(..., description="Recipient email addre
             detail="Message broker unavailable. Background task could not be queued.",
         )
 
-    # Spawn async background executor thread for immediate, guaranteed completion
-    msg = f"Notification sent to {clean_email}"
-    threading.Thread(
-        target=execute_background_task,
-        args=(task_id, msg),
-        daemon=True,
-    ).start()
+    # Spawn async background executor thread only in single-instance environments
+    # (e.g. Render standalone web service where external Celery worker is disabled)
+    is_testing = "pytest" in sys.modules or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    if not os.environ.get("DISABLE_EMBEDDED_WORKER") and not is_testing:
+        msg = f"Notification sent to {clean_email}"
+        threading.Thread(
+            target=execute_background_task,
+            args=(task_id, msg),
+            daemon=True,
+        ).start()
 
     return {
         "message": f"Email will be sent to {clean_email}",

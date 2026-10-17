@@ -96,7 +96,7 @@ def process_notification_job(task_id: str, message: str) -> str:
             result_message = f"Task completed (Real email sent to {recipient}): {message}"
         except Exception as exc:
             logger.error(f"Failed to deliver real email via SMTP: {exc}", exc_info=True)
-            result_message = f"Task completed (SMTP Error: {str(exc)}): {message}"
+            raise RuntimeError(f"SMTP Delivery Failed: {str(exc)}") from exc
     else:
         # Standard simulated duration
         duration = settings.TASK_SIMULATION_SECONDS
