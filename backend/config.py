@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     REDIS_USE_SSL: bool = Field(default=False, description="Enable TLS/SSL for ElastiCache in-transit encryption")
 
     # Celery Override URLs (optional, derived if not set)
+    REDIS_URL: Optional[str] = Field(default=None, description="Standard Redis connection URL (e.g. from Render/Heroku)")
     CELERY_BROKER_URL: Optional[str] = Field(default=None, description="Explicit Celery broker URL override")
     CELERY_RESULT_BACKEND_URL: Optional[str] = Field(default=None, description="Explicit Celery result backend URL override")
 
@@ -65,12 +66,16 @@ class Settings(BaseSettings):
     def celery_broker_url(self) -> str:
         if self.CELERY_BROKER_URL:
             return self.CELERY_BROKER_URL
+        if self.REDIS_URL:
+            return self.REDIS_URL
         return self._build_redis_url()
 
     @property
     def celery_result_backend_url(self) -> str:
         if self.CELERY_RESULT_BACKEND_URL:
             return self.CELERY_RESULT_BACKEND_URL
+        if self.REDIS_URL:
+            return self.REDIS_URL
         return self._build_redis_url()
 
     def safe_dict(self) -> dict:

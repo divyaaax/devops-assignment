@@ -51,6 +51,7 @@ COPY --from=builder --chown=appuser:appgroup /root/.local /home/appuser/.local
 # Copy application source code
 COPY --chown=appuser:appgroup backend/ /app/backend/
 COPY --chown=appuser:appgroup frontend/ /app/frontend/
+COPY --chown=appuser:appgroup *.py /app/
 
 USER appuser
 

@@ -9,6 +9,7 @@ def test_write_log_celery_execution(monkeypatch, tmp_path):
     test_log = tmp_path / "test_log.txt"
     monkeypatch.setenv("CELERY_LOG_FILE", str(test_log))
     monkeypatch.setattr("worker.settings.TASK_SIMULATION_SECONDS", 0)
+    monkeypatch.setattr("worker.settings.ENABLE_REAL_EMAIL", False)
 
     # In Celery with bind=True, calling .apply() executes locally in eager mode
     # or .run(mock_self, ...) invokes the underlying function directly.
