@@ -1,6 +1,7 @@
 # Production-Ready Containerized Application with AWS, Terraform & CI/CD
 
 [![Continuous Integration](https://github.com/divyaaax/devops-assignment/actions/workflows/ci.yml/badge.svg)](https://github.com/divyaaax/devops-assignment/actions/workflows/ci.yml)
+[![Live Demo](https://img.shields.io/badge/Live_Deployment-Render-46E3B7.svg?logo=render&logoColor=white)](https://devops-assignment-2-txgu.onrender.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![Docker: Supported](https://img.shields.io/badge/docker-ready-2496ED.svg)](https://www.docker.com/)
@@ -12,25 +13,24 @@
 
 | Requirement | Location / Reference | Description |
 | :--- | :--- | :--- |
+| **Live Cloud Deployment** | [devops-assignment-2-txgu.onrender.com](https://devops-assignment-2-txgu.onrender.com/) | Live, publicly accessible cloud deployment featuring the full asynchronous task processing pipeline. |
 | **Full Source Code** | [`backend/`](backend/), [`frontend/`](frontend/), [`Dockerfile.backend`](Dockerfile.backend), [`Dockerfile.worker`](Dockerfile.worker), [`docker-compose.yml`](docker-compose.yml) | Asynchronous task processor built with FastAPI, Celery, Redis, and HTML5 frontend. |
 | **Infrastructure as Code (IaC)** | [`infra/terraform/`](infra/terraform/) | Production AWS Terraform modules for multi-AZ VPC, ALB, ECS Fargate, ECR, ElastiCache Redis, and CloudWatch. |
 | **CI/CD Configuration** | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) | Keyless AWS OIDC authentication, automated linting, pytest, Trivy container security scanning, and ECS rollout. |
 | **README.md Setup Steps** | [Section 5](#5-quickstart-running-locally-with-docker-compose) & [Section 7](#7-cloud-deployment-with-terraform-aws) | Detailed local Docker Compose, host virtualenv, and AWS Terraform deployment steps. |
-| **Video Walkthrough** | [Video Walkthrough](#video-walkthrough) & [`docs/video-walkthrough.md`](docs/video-walkthrough.md) | 5–8 minute presentation covering code architecture, containerization, local execution, and CI/CD deployment pipeline. |
 
 ---
 
-## Video Walkthrough
+## 🚀 Live Cloud Deployment
 
-> **Presentation Video**: [Watch the Video Walkthrough](docs/video-walkthrough.md) *(or insert your Loom / YouTube / Google Drive link here)*
+The application is deployed live and publicly accessible:
+
+> **Public Application URL**: [https://devops-assignment-2-txgu.onrender.com/](https://devops-assignment-2-txgu.onrender.com/)
 >
-> A detailed 5–8 minute walkthrough explaining:
-> 1. **Code Architecture & Task Lifecycle**: How FastAPI, Celery, and Redis process asynchronous background tasks.
-> 2. **Local Multi-Service Orchestration**: Starting the stack with Docker Compose and observing real-time worker logs.
-> 3. **Infrastructure as Code (IaC)**: Reusable Terraform modules provisioning AWS VPC, ALB, ECS Fargate, and ElastiCache Redis.
-> 4. **CI/CD Pipeline & Deployment**: Automated linting, test suites, Trivy CVE scanning, and AWS OIDC deployment to ECS.
->
-> The complete speaker script is available in [`docs/video-walkthrough.md`](docs/video-walkthrough.md).
+> - **Interactive Frontend**: [https://devops-assignment-2-txgu.onrender.com/](https://devops-assignment-2-txgu.onrender.com/)
+> - **Health Check Endpoint**: [`https://devops-assignment-2-txgu.onrender.com/health`](https://devops-assignment-2-txgu.onrender.com/health) (Returns `{"status":"healthy","service":"backend","environment":"production"}`)
+> - **Interactive API Docs (Swagger UI)**: [`https://devops-assignment-2-txgu.onrender.com/docs`](https://devops-assignment-2-txgu.onrender.com/docs)
+> - **Task Status API**: [`https://devops-assignment-2-txgu.onrender.com/task_status/{task_id}`](https://devops-assignment-2-txgu.onrender.com/docs#/default/get_task_status_task_status__task_id__get)
 
 ---
 
@@ -145,8 +145,7 @@ devops-assignment/
 │       ├── ci.yml                # CI: Linting, pytest, docker builds, Trivy security scan
 │       └── deploy.yml            # CD: AWS OIDC auth, ECR push, ECS rollout, health check
 ├── docs/
-│   ├── architecture.md           # Detailed Mermaid architecture diagrams
-│   └── video-walkthrough.md      # 5-8 minute presentation and recording script
+│   └── architecture.md           # Detailed Mermaid architecture diagrams
 ├── instructions.md               # Beginner-friendly local development guide
 ├── journey.md                    # Engineering journey, decisions & verified resolutions
 └── README.md                     # Complete project documentation

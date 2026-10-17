@@ -1,19 +1,26 @@
+"""
+Celery Worker Application
+Executes asynchronous background tasks with logging, file tracking, and real SMTP email delivery.
+"""
+
 import os
 import re
 import time
 import logging
 import smtplib
 from email.message import EmailMessage
+# pyrefly: ignore[missing-import]
 from celery import Celery
 from config import settings
 
+# Setup logging
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
     format="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s"
 )
 logger = logging.getLogger("celery_worker")
 
-# celery setup
+# Configure Celery with environment-derived broker and result backend URLs
 celery = Celery(
     "worker",
     broker=settings.celery_broker_url,
@@ -32,6 +39,7 @@ logger.info(f"Celery worker configured. Broker: {settings.safe_dict()['CELERY_BR
 
 
 def send_via_resend(recipient_email: str, task_id: str, api_key: str) -> str:
+    """Delivers real email via Resend HTTPS API (Port 443), works on Render Free Tier without SMTP blocks."""
     import json
     import urllib.request
     import urllib.error
@@ -68,59 +76,16 @@ def send_via_resend(recipient_email: str, task_id: str, api_key: str) -> str:
         err_body = http_err.read().decode("utf-8", errors="replace")
         logger.error(f"Resend API error HTTP {http_err.code}: {err_body}")
         raise RuntimeError(f"Resend API HTTP {http_err.code}: {err_body}") from http_err
-
-
-def send_via_brevo(recipient_email: str, task_id: str, api_key: str) -> str:
-    import json
-    import urllib.request
-    import urllib.error
-
-    url = "https://api.brevo.com/v3/smtp/email"
-    sender_email = (settings.SMTP_FROM or settings.SMTP_USER or "divyagana04@gmail.com").strip()
-    headers = {
-        "api-key": api_key.strip(),
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-    payload = {
-        "sender": {"name": "DevOps Task Notifier", "email": sender_email},
-        "to": [{"email": recipient_email.strip().lower()}],
-        "subject": "DevOps Assessment: Real-Time Task Notification",
-        "htmlContent": (
-            f"Hello,<br><br>"
-            f"This is a verified real-time notification sent from your containerized "
-            f"FastAPI + Celery + Redis application stack.<br><br>"
-            f"Task Details:<br>"
-            f"- Task ID: {task_id}<br>"
-            f"- Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}<br>"
-            f"- Status: Successfully processed by Celery worker pool<br><br>"
-            f"Best regards,<br>"
-            f"DevOps Assessment Application"
-        ),
-    }
-    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            logger.info(f"Real email successfully dispatched to {recipient_email} via Brevo HTTPS API")
-            return f"Real email dispatched to {recipient_email} via Brevo API"
-    except urllib.error.HTTPError as http_err:
-        err_body = http_err.read().decode("utf-8", errors="replace")
-        logger.error(f"Brevo API error HTTP {http_err.code}: {err_body}")
-        raise RuntimeError(f"Brevo API HTTP {http_err.code}: {err_body}") from http_err
-
+ 
 
 def send_real_email(recipient_email: str, task_id: str) -> str:
-    # Brevo API
-    brevo_key = os.environ.get("BREVO_API_KEY") or getattr(settings, "BREVO_API_KEY", None)
-    if brevo_key and brevo_key.strip():
-        return send_via_brevo(recipient_email, task_id, brevo_key.strip())
-
-    # Resend API
+    """Sends a real email using configured provider (Resend HTTPS API or Gmail SMTP)."""
+    # 1. Prefer Resend API if configured (port 443 HTTPS, bypasses Render SMTP firewall)
     resend_key = os.environ.get("RESEND_API_KEY") or getattr(settings, "RESEND_API_KEY", None)
     if resend_key and resend_key.strip():
         return send_via_resend(recipient_email, task_id, resend_key.strip())
 
-    # SMTP fallback
+    # 2. Standard Gmail / Custom SMTP
     smtp_user = (settings.SMTP_USER or "").replace('"', "").replace("'", "").strip()
     smtp_password = (settings.SMTP_PASSWORD or "").replace(" ", "").replace('"', "").replace("'", "").strip()
 
@@ -159,13 +124,19 @@ def send_real_email(recipient_email: str, task_id: str) -> str:
 
 
 def process_notification_job(task_id: str, message: str) -> str:
+    """
+    Core notification execution logic:
+    1. Simulates or delivers real email via Gmail SMTP if configured.
+    2. Writes local log file.
+    3. Returns status message for client UI.
+    """
     logger.info(f"Task started (ID: {task_id}): {message}")
 
-    # check recipient email
+    # Extract recipient email address if present in message
     email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", message)
-    recipient = email_match.group(0).strip().lower() if email_match else None
+    recipient = email_match.group(0) if email_match else None
 
-    # send real email if enabled
+    # Real email delivery if enabled and credentials configured
     if settings.ENABLE_REAL_EMAIL and recipient:
         try:
             send_real_email(recipient, task_id)
@@ -174,13 +145,13 @@ def process_notification_job(task_id: str, message: str) -> str:
             logger.error(f"Failed to deliver real email via SMTP: {exc}", exc_info=True)
             raise RuntimeError(f"SMTP Delivery Failed: {str(exc)}") from exc
     else:
-        # simulate work
+        # Standard simulated duration
         duration = settings.TASK_SIMULATION_SECONDS
         if duration > 0:
             time.sleep(duration)
         result_message = f"Task completed: {message}"
 
-    # write to log file
+    # Write log file safely
     log_file_path = os.getenv("CELERY_LOG_FILE", "log_celery.txt")
     if log_file_path:
         try:
