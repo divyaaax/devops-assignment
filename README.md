@@ -9,19 +9,9 @@
 
 ---
 
-## Submission Deliverables
 
-| Requirement | Location / Reference | Description |
-| :--- | :--- | :--- |
-| **Live Cloud Deployment** | [devops-assignment-2-txgu.onrender.com](https://devops-assignment-2-txgu.onrender.com/) | Live, publicly accessible cloud deployment featuring the full asynchronous task processing pipeline. |
-| **Full Source Code** | [`backend/`](backend/), [`frontend/`](frontend/), [`Dockerfile.backend`](Dockerfile.backend), [`Dockerfile.worker`](Dockerfile.worker), [`docker-compose.yml`](docker-compose.yml) | Asynchronous task processor built with FastAPI, Celery, Redis, and HTML5 frontend. |
-| **Infrastructure as Code (IaC)** | [`infra/terraform/`](infra/terraform/) | Production AWS Terraform modules for multi-AZ VPC, ALB, ECS Fargate, ECR, ElastiCache Redis, and CloudWatch. |
-| **CI/CD Configuration** | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) | Keyless AWS OIDC authentication, automated linting, pytest, Trivy container security scanning, and ECS rollout. |
-| **README.md Setup Steps** | [Section 5](#5-quickstart-running-locally-with-docker-compose) & [Section 7](#7-cloud-deployment-with-terraform-aws) | Detailed local Docker Compose, host virtualenv, and AWS Terraform deployment steps. |
 
----
-
-## 🚀 Live Cloud Deployment
+##  Live Cloud Deployment
 
 The application is deployed live and publicly accessible:
 
