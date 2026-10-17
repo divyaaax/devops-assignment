@@ -37,13 +37,59 @@ celery.conf.update(
 logger.info(f"Celery worker configured. Broker: {settings.safe_dict()['CELERY_BROKER_MASKED']}")
 
 
+def send_via_resend(recipient_email: str, task_id: str, api_key: str) -> str:
+    """Delivers real email via Resend HTTPS API (Port 443), works on Render Free Tier without SMTP blocks."""
+    import json
+    import urllib.request
+    import urllib.error
+
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {api_key.strip()}",
+        "Content-Type": "application/json",
+        "User-Agent": "DevOps-Assessment/1.0",
+    }
+    payload = {
+        "from": "DevOps Task Notifier <onboarding@resend.dev>",
+        "to": [recipient_email.strip()],
+        "subject": "DevOps Assessment: Real-Time Task Notification",
+        "text": (
+            f"Hello,\n\n"
+            f"This is a verified real-time notification sent from your containerized "
+            f"FastAPI + Celery + Redis application stack on Render.\n\n"
+            f"Task Details:\n"
+            f"- Task ID: {task_id}\n"
+            f"- Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n"
+            f"- Status: Successfully processed by Celery worker pool\n"
+            f"- Protocol: HTTPS Port 443 (Render-Compatible)\n\n"
+            f"Best regards,\n"
+            f"DevOps Assessment Application"
+        ),
+    }
+    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            logger.info(f"Real email successfully dispatched to {recipient_email} via Resend HTTPS API")
+            return f"Real email dispatched to {recipient_email} via Resend API"
+    except urllib.error.HTTPError as http_err:
+        err_body = http_err.read().decode("utf-8", errors="replace")
+        logger.error(f"Resend API error HTTP {http_err.code}: {err_body}")
+        raise RuntimeError(f"Resend API HTTP {http_err.code}: {err_body}") from http_err
+
+
 def send_real_email(recipient_email: str, task_id: str) -> str:
-    """Sends a real email using configured SMTP provider (e.g. Gmail SMTP)."""
+    """Sends a real email using configured provider (Resend HTTPS API or Gmail SMTP)."""
+    # 1. Prefer Resend API if configured (port 443 HTTPS, bypasses Render SMTP firewall)
+    resend_key = os.environ.get("RESEND_API_KEY") or getattr(settings, "RESEND_API_KEY", None)
+    if resend_key and resend_key.strip():
+        return send_via_resend(recipient_email, task_id, resend_key.strip())
+
+    # 2. Standard Gmail / Custom SMTP
     smtp_user = (settings.SMTP_USER or "").replace('"', "").replace("'", "").strip()
     smtp_password = (settings.SMTP_PASSWORD or "").replace(" ", "").replace('"', "").replace("'", "").strip()
 
     if not smtp_user or not smtp_password:
-        raise ValueError("SMTP_USER and SMTP_PASSWORD must be configured in .env for real email delivery")
+        raise ValueError("SMTP_USER and SMTP_PASSWORD (or RESEND_API_KEY) must be configured for real email delivery")
 
     from_addr = (settings.SMTP_FROM or smtp_user).replace('"', "").replace("'", "").strip()
     recipient_email = recipient_email.strip()
