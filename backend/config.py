@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = Field(default=None, description="Gmail 16-character App Password")
     SMTP_FROM: Optional[str] = Field(default=None, description="From header email address")
     RESEND_API_KEY: Optional[str] = Field(default=None, description="Resend.com API Key for port 443 HTTPS email delivery on Render Free Tier")
+    BREVO_API_KEY: Optional[str] = Field(default=None, description="Brevo API Key (xkeysib-...) for sending to ANY email without domain verification")
 
     model_config = {
         "env_file": [

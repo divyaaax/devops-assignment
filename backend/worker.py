@@ -77,14 +77,59 @@ def send_via_resend(recipient_email: str, task_id: str, api_key: str) -> str:
         raise RuntimeError(f"Resend API HTTP {http_err.code}: {err_body}") from http_err
 
 
+def send_via_brevo(recipient_email: str, task_id: str, api_key: str) -> str:
+    """Delivers real email via Brevo HTTPS API (Port 443) to ANY recipient without domain verification."""
+    import json
+    import urllib.request
+    import urllib.error
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    sender_email = (settings.SMTP_FROM or settings.SMTP_USER or "divyagana04@gmail.com").strip()
+    headers = {
+        "api-key": api_key.strip(),
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    payload = {
+        "sender": {"name": "DevOps Task Notifier", "email": sender_email},
+        "to": [{"email": recipient_email.strip().lower()}],
+        "subject": "DevOps Assessment: Real-Time Task Notification",
+        "htmlContent": (
+            f"Hello,<br><br>"
+            f"This is a verified real-time notification sent from your containerized "
+            f"FastAPI + Celery + Redis application stack.<br><br>"
+            f"Task Details:<br>"
+            f"- Task ID: {task_id}<br>"
+            f"- Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}<br>"
+            f"- Status: Successfully processed by Celery worker pool<br><br>"
+            f"Best regards,<br>"
+            f"DevOps Assessment Application"
+        ),
+    }
+    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            logger.info(f"Real email successfully dispatched to {recipient_email} via Brevo HTTPS API")
+            return f"Real email dispatched to {recipient_email} via Brevo API"
+    except urllib.error.HTTPError as http_err:
+        err_body = http_err.read().decode("utf-8", errors="replace")
+        logger.error(f"Brevo API error HTTP {http_err.code}: {err_body}")
+        raise RuntimeError(f"Brevo API HTTP {http_err.code}: {err_body}") from http_err
+
+
 def send_real_email(recipient_email: str, task_id: str) -> str:
-    """Sends a real email using configured provider (Resend HTTPS API or Gmail SMTP)."""
-    # 1. Prefer Resend API if configured (port 443 HTTPS, bypasses Render SMTP firewall)
+    """Sends a real email using configured provider (Brevo API, Resend API, or Gmail SMTP)."""
+    # 1. Brevo API (port 443 HTTPS, sends to ANY recipient without needing custom domain)
+    brevo_key = os.environ.get("BREVO_API_KEY") or getattr(settings, "BREVO_API_KEY", None)
+    if brevo_key and brevo_key.strip():
+        return send_via_brevo(recipient_email, task_id, brevo_key.strip())
+
+    # 2. Resend API (port 443 HTTPS)
     resend_key = os.environ.get("RESEND_API_KEY") or getattr(settings, "RESEND_API_KEY", None)
     if resend_key and resend_key.strip():
         return send_via_resend(recipient_email, task_id, resend_key.strip())
 
-    # 2. Standard Gmail / Custom SMTP
+    # 3. Standard Gmail / Custom SMTP
     smtp_user = (settings.SMTP_USER or "").replace('"', "").replace("'", "").strip()
     smtp_password = (settings.SMTP_PASSWORD or "").replace(" ", "").replace('"', "").replace("'", "").strip()
 
