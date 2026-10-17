@@ -51,7 +51,7 @@ def send_via_resend(recipient_email: str, task_id: str, api_key: str) -> str:
     }
     payload = {
         "from": "DevOps Task Notifier <onboarding@resend.dev>",
-        "to": [recipient_email.strip()],
+        "to": [recipient_email.strip().lower()],
         "subject": "DevOps Assessment: Real-Time Task Notification",
         "text": (
             f"Hello,\n\n"
@@ -133,7 +133,7 @@ def process_notification_job(task_id: str, message: str) -> str:
 
     # Extract recipient email address if present in message
     email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", message)
-    recipient = email_match.group(0) if email_match else None
+    recipient = email_match.group(0).strip().lower() if email_match else None
 
     # Real email delivery if enabled and credentials configured
     if settings.ENABLE_REAL_EMAIL and recipient:
