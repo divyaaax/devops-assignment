@@ -17,6 +17,7 @@ jobs:
   deploy:
     name: Build, Publish to ECR & Deploy to ECS Fargate
     runs-on: ubuntu-latest
+    if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
 
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
